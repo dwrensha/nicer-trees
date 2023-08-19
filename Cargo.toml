@@ -1,0 +1,26 @@
+[package]
+name = "nicer-trees"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+
+itertools = "0.11.0"
+lru = "0.11.0"
+num-bigint = "0.4.3"
+num-traits = "0.2.15"
+
+[dependencies.rand]
+version = "0.8.3"
+features = ["getrandom", "std_rng", "small_rng"]
+
+[dependencies.crossbeam-utils]
+version = "0.8.7"
+
+[dependencies.bit-vec]
+version = "0.6.3"
+
+[[bin]]
+name = "wordle-decision-tree"
+path = "src/wordle-decision-tree.rs"
+
