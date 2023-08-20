@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<link rel="stylesheet" type="text/css" href="main.css">
+<!-- Load d3.js -->
+<script src="https://d3js.org/d3.v5.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-scale-chromatic@3"></script>
+<script src="color-legend.js"></script>
+<!-- <script src="data.js"></script> -->
+<!-- <script src="data-greedy.js"></script> -->
+<!-- <script src="data-iterative.js"></script> -->
+<script src="visualize-tree-data.js"></script>
+
+
+<div id="main-container" style="display:flex; background-color:#eeeeee;">
+  <div id="my_dataviz"></div>
+  <div id="info_column" style="width: 720px; height: 1080px; display:flex; flex-direction:column;justify-content:space-between; margin-top: 15px; margin-bottom:25px; margin-left:10px">
+    <div id="legend"></div>
+    <div id="letter-groups" style="font-size:15px; height: 40px"></div>
+    <div id="cell-stats" style="font-size:21px">[no selected cell]</div>
+    <div id="words-of-cell"
+         style="overflow-y: scroll; height:400px; font-size:27px;background-color:white;">
+    </div>
+    <div id="bitcount-chart" style="height: 500; margin-left:5px">
+    </div>
+  </div>
+</div>
+<script type="module">
+  const entropyColorScale =  d3.scaleSequential(d3.interpolateViridis).domain([0,1]);
+
+  const entropyLegend =  legend({color: entropyColorScale,
+                            title: "H(d) = bits per string",
+                            width: 675,
+                           });
+  const densityColorScale =  d3.scaleSequential(d3.interpolateViridis).domain([0,0.71]);
+
+  const densityLegend =  legend({color: densityColorScale,
+                            title: "d = valid words / possible strings",
+                            width: 675,
+                           });
+
+  let mode = "entropy";
+  const colorer = (d) => {
+    if (mode == "entropy") {
+      return entropyColorScale(d.data.entropy);
+    } else if (mode == "density") {
+      return densityColorScale(d.data.num_words / d.data.value);
+    } else {
+      console.error("unknown mode", mode);
+    }
+  };
+  const update_legend = () => {
+    if (mode == "entropy") {
+      d3.select("#legend")
+        .html("")
+        .node()
+        .appendChild(entropyLegend);
+    } else if (mode == "density") {
+      d3.select("#legend")
+        .html("")
+        .node()
+        .appendChild(densityLegend);
+    } else {
+      console.error("unknown mode", mode);
+    }
+  };
+  update_legend();
+
+  // set the dimensions and margins of the graph
+  const margin = {top: 10, right: 10, bottom: 10, left: 10};
+  const width = 1200 - margin.left - margin.right;
+  const height = 1080 - margin.top - margin.bottom;
+
+  // append the svg object to the body of the page
+  const svg = d3.select("#my_dataviz")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform",
+              "translate(" + margin.left + "," + margin.top + ")");
+
+  const lc_margin = {top: 5, right: 5, bottom: 30, left: 50};
+  const lc_width = 700 - lc_margin.left - lc_margin.right;
+  const lc_height = 500 - lc_margin.top - lc_margin.bottom;
+  const lc_svg = d3.select("#bitcount-chart")
+        .append("svg")
+        .attr("width", lc_width + lc_margin.left + lc_margin.right)
+        .attr("height", lc_height + lc_margin.top + lc_margin.bottom)
+        .append("g")
+        .attr("transform",
+              "translate(" + lc_margin.left + "," + lc_margin.top + ")");
+
+  const total_bitcost_color = "#0077ef";
+  const tree_bitcost_color = "orange";
+  lc_svg.append("path")
+  .attr("class", "total-bitcost");
+  lc_svg.append("text")
+  .attr("class", "total-bitcost-caption");
+  lc_svg.append("path")
+  .attr("class", "tree-bitcost");
+  lc_svg.append("text")
+  .attr("class", "tree-bitcost-caption");
+
+  const lc_legend = lc_svg.append("g")
+        .attr("transform", `translate(430,10)`);
+  lc_legend.append("text").text("total encoding bits")
+  .attr("x", 30)
+  .attr("y", 15)
+  .attr("font-size", 19);
+  lc_legend.append("rect")
+  .attr("x", 5)
+  .attr("y", 11)
+  .attr("width", 19)
+  .attr("height", 1)
+  .attr("stroke", total_bitcost_color)
+  .attr("stroke-width", 2);
+
+  lc_legend.append("text").text("tree overhead bits")
+  .attr("x", 30)
+  .attr("y", 40)
+  .attr("font-size", 19);
+
+  lc_legend.append("rect")
+  .attr("x", 5)
+  .attr("y", 36)
+  .attr("width", 19)
+  .attr("height", 1)
+  .attr("stroke", tree_bitcost_color)
+  .attr("stroke-width", 2);
+
+  const lc_x = d3.scaleLinear()
+        .domain([0, data.length * 1.25])
+        .range([ 0, lc_width ]);
+  const lc_y = d3.scaleLinear()
+        .domain([0, 147000])
+        .range([lc_height, 0]);
+
+  lc_svg.append("g")
+  .attr("transform", "translate(0," + lc_height + ")")
+  .call(d3.axisBottom(lc_x));
+
+   lc_svg.append("g")
+      .call(d3.axisLeft(lc_y));
+
+  let lc_data = [];
+  for (let ii = 0; ii < data.length; ++ii) {
+    lc_data.push({idx: ii, data: data[ii]});
+  }
+
+  const treemapLayout = d3.treemap()
+        .size([width, height])
+        .tile(d3.treemapResquarify);
+
+  let paused = true;
+
+  let mouseover_cell = null;
+  const update_stats = (o) => {
+    let words = o.data.words.join(", ");
+    if (words == "") {
+      words = "∅";
+    }
+    d3.select("#words-of-cell").text(words);
+    let lg = o.data.letter_groups.map(x => x.join("")).join(", ");
+    d3.select("#letter-groups").text(lg);
+    let maybe_s = "s";
+    if (o.data.num_words == 1) { maybe_s = ""; };
+    d3.select("#cell-stats")
+      .text(`${o.data.num_words} word${maybe_s} out of ${o.data.num_possibilities} strings (d = ${(o.data.num_words/o.data.num_possibilities).toFixed(9)}, bits = ${o.data.bitcost.toFixed(2)})`);
+  };
+
+  let ii = 0;
+  const update_viz = (schedule_another) => {
+    console.log("drawing frame ", ii);
+    const root2 = d3.hierarchy(data[ii].tree).sum(d => d.value)
+
+    treemapLayout(root2);
+
+    let nodes = svg
+        .selectAll("rect")
+        .data(root2.leaves(), d => d.data.name)
+        .join(
+          function(enter) {
+              return enter
+              .append("rect")
+              .attr('x', d => d.x0)
+              .attr('y', d => d.y0 )
+              .attr('width', d => d.x1 - d.x0)
+              .attr('height', d => d.y1 - d.y0)
+              .style("stroke", "black")
+              .style("fill", colorer)
+              .on('mouseover', function(o, i) {
+                mouseover_cell = o.data.name;
+                d3.select(this)
+                  .style("stroke", "#aaffff")  // Highlight color
+                  .style("stroke-width", "1") // Highlight thickness
+                  .attr('width', d => d.x1 - d.x0 - 1)
+                  .attr('height', d => d.y1 - d.y0 - 1);
+                update_stats(o);
+              })
+              .on('mouseout', function (o, i) {
+                mouseover_cell = null;
+                d3.select(this)
+                  .style("stroke", "black")  // Highlight color
+                  .style("stroke-width", "1") // Highlight thickness
+                  .attr('width', d => d.x1 - d.x0)
+                  .attr('height', d => d.y1 - d.y0);
+              });
+          },
+          function (update) {
+            return update
+              .attr('x', d => d.x0)
+              .attr('y', d => d.y0 )
+              .attr('width', d => {
+                if (d.data.name == mouseover_cell){
+
+                  /*sneak this update in here... */
+                  update_stats(d);
+
+                  return d.x1 - d.x0 - 1;
+                } else {
+                  return d.x1 - d.x0;
+                }})
+              .attr('height', d => {
+                if (d.data.name == mouseover_cell) {
+                  return d.y1 - d.y0 - 1;
+                } else {
+                  return d.y1 - d.y0;
+                }
+              })
+              .style("fill", colorer);
+          },
+          function (exit) {
+            return exit
+              .attr('x', d => d.x0)
+              .remove();
+          });
+
+    const total_bitcost = data[ii].entropy_bitcost + data[ii].tree_bitcost;
+
+    let lc_data1 = lc_data.slice(0, ii+1);
+
+    // Add the lines
+    lc_svg.select(".total-bitcost")
+      .datum(lc_data1)
+      .attr("fill", "none")
+      .attr("stroke", total_bitcost_color)
+      .attr("stroke-width", 3.0)
+      .attr("d",
+            d3.line()
+            .x(d => lc_x(d.idx + 1))
+            .y(d => lc_y(d.data.entropy_bitcost + d.data.tree_bitcost)));
+
+    if (ii > 0) {
+      lc_svg.select(".total-bitcost-caption")
+        .text("" + total_bitcost.toFixed(2))
+        .attr("x", lc_x(ii + 1))
+        .attr("y", lc_y(total_bitcost) - 5)
+        .attr("font-size", 19);
+    } else {
+      lc_svg.select(".total-bitcost-caption")
+        .text("");
+    }
+
+    lc_svg.select(".tree-bitcost")
+      .datum(lc_data1)
+      .attr("fill", "none")
+      .attr("stroke", tree_bitcost_color)
+      .attr("stroke-width", 3.0)
+      .attr("d",
+            d3.line()
+            .x(d => lc_x(d.idx + 1))
+            .y(d => lc_y(d.data.tree_bitcost)));
+
+    if (ii > 0) {
+      lc_svg.select(".tree-bitcost-caption")
+        .text("" + data[ii].tree_bitcost.toFixed(2))
+        .attr("x", lc_x(ii + 1))
+        .attr("y", lc_y(data[ii].tree_bitcost) - 5)
+        .attr("font-size", 19);
+    } else {
+      lc_svg.select(".tree-bitcost-caption")
+        .text("");
+    }
+
+    if (schedule_another && !paused) {
+      ii += 1;
+      if (ii >= data.length) {
+        ii = data.length - 1;
+        paused = true;
+      }
+      setTimeout(() => update_viz(true), 50);
+    }
+  };
+
+  update_viz(false);
+
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      const keyName = event.key;
+
+      if (keyName === " ") {
+        if (paused) {
+          paused = false;
+          update_viz(true);
+        } else {
+          paused = true;
+        }
+      } else if (keyName == "ArrowLeft") {
+        ii -= 1;
+        if (ii < 0) {
+          ii = 0;
+        }
+        update_viz();
+      } else if (keyName == "ArrowRight") {
+        ii += 1;
+        if (ii >= data.length) {
+          ii = data.length - 1;
+        }
+        update_viz();
+      } else if (keyName == "c") {
+        if (mode == "entropy") {
+          mode = "density";
+        } else {
+          mode = "entropy";
+        }
+        update_viz(false);
+        update_legend();
+      } else if (keyName == "r") {
+        ii = 0;
+        update_viz();
+      }
+    },
+    false,
+  );
+
+</script>
