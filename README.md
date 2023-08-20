@@ -5,6 +5,11 @@ Companion code for [this video](https://www.youtube.com/watch?v=JYN25TeM5kI).
 
 [<img src="http://img.youtube.com/vi/JYN25TeM5kI/maxresdefault.jpg" height="240px">](http://youtu.be/JYN25TeM5kI)
 
+## visualization
+
+Try the interactive visualization here: https://dwrensha.github.io/nicer-trees/
+
+## running the code
 To generate `solution.js`:
 ```
 $ cargo build --release
