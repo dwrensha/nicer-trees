@@ -169,7 +169,7 @@
       .text(`${o.data.num_words} word${maybe_s} out of ${o.data.num_possibilities} strings (d = ${(o.data.num_words/o.data.num_possibilities).toFixed(9)}, bits = ${o.data.bitcost.toFixed(2)})`);
   };
 
-  let ii = 0;
+  let ii = data.length - 1;
   const update_viz = (schedule_another) => {
     console.log("drawing frame ", ii);
     const root2 = d3.hierarchy(data[ii].tree).sum(d => d.value)
