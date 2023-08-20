@@ -1,4 +1,4 @@
-# nicer-trees
+# Nicer Trees Spend Fewer Bytes
 
 
 Companion code for [this video](https://www.youtube.com/watch?v=JYN25TeM5kI).
