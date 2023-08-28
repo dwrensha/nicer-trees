@@ -26,5 +26,5 @@ $ ./target/release/wordle-decision-tree optimize wordle-bigint-code-optimized.tx
 ## submission
 
 [Here](https://github.com/dwrensha/golf-horse-submissions/blob/main/submissions/SoME2023-m4PcDDrt2kGKsOiE5Y6HhGVnYmiVn8-KPebeFFNiHu4)
-is the solution submitted to [golf.horse](http://golf.horse) after this video
-was completed.
+is the solution submitted to [golf.horse](http://golf.horse) after the video
+was submitted to [SoME3](https://some.3b1b.co/).
